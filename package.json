@@ -1,6 +1,6 @@
 {
   "name": "@wahaha216/koishi-plugin-steam-workshop",
-  "description": "从steam创意工坊获取文件并上传",
+  "description": "从steam创意工坊获取信息",
   "version": "0.0.1",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -18,5 +18,19 @@
   "devDependencies": {},
   "peerDependencies": {
     "koishi": "^4.17.6"
+  },
+  "koishi": {
+    "preview": true,
+    "description": {
+      "en": "get info from steam workshop url",
+      "zh": "从steam创意工坊获取信息"
+    },
+    "service": {
+      "required": ["http"]
+    },
+    "locales": [
+      "en",
+      "zh"
+    ]
   }
 }
