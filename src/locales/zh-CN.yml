@@ -1,0 +1,17 @@
+commands:
+  workshop:
+    description: 识别创意工坊物品链接
+    examples: |-
+      workshop https://steamcommunity.com/sharedfiles/filedetails/?id=121148626
+    messages:
+      title: 标题
+      fileSize: 文件大小
+      game: 游戏
+      description: 描述
+      ask_download: 是否下载：{0}？（{1}秒内回复：是|y|yes/否|n|no）
+      input_timeout: 输入超时
+      invalid_link: 不正确的链接格式
+_config:
+  autoRecognise: 自动别创意工坊物品链接
+  askDownload: 询问是否下载文件
+  inputTimeout: 询问超时时间（毫秒）

@@ -1,0 +1,17 @@
+commands:
+  workshop:
+    description: Recongnise Steam Workshop item link
+    examples: |-
+      workshop https://steamcommunity.com/sharedfiles/filedetails/?id=xxxxxx
+    messages:
+      title: title
+      fileSize: fileSize
+      game: game
+      description: description
+      ask_download: download {title} ? (Reply in {timeout} seconds 是|y|yes / 否|n|no)
+      input_timeout: Input timeout
+      invalid_link: Invalid link
+_config:
+  autoRecognise: Auto recongnise Steam Workshop item link
+  askDownload: Ask download file
+  inputTimeout: Ask download timeout, ms
