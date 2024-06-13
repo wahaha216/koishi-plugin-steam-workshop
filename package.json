@@ -11,7 +11,9 @@
   "license": "MIT",
   "scripts": {},
   "keywords": [
-    "chatbot",
+    "steam",
+    "workshop",
+    "创意工坊",
     "koishi",
     "plugin"
   ],
@@ -19,13 +21,23 @@
   "peerDependencies": {
     "koishi": "^4.17.6"
   },
+  "author": {
+    "name": "wahaha216"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wahaha216/koishi-plugin-steam-workshop"
+  },
   "koishi": {
     "description": {
       "en": "Get information from the Steam Workshop",
       "zh": "从steam创意工坊获取信息"
     },
     "service": {
-      "required": ["http"]
+      "required": [
+        "http",
+        "logger"
+      ]
     },
     "locales": [
       "en",
