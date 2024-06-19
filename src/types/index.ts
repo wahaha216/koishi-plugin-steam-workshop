@@ -44,7 +44,11 @@ export declare type FileInfo = {
   views: number;
   spoiler_tag: boolean;
   num_children: number;
-  children: null;
+  children: {
+    file_type: number;
+    publishedfileid: string;
+    sortorder: number;
+  }[];
   num_reports: number;
   previews: null;
   tags: {
