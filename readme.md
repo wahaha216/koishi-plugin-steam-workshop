@@ -9,7 +9,10 @@
 ## 使用方式
 
 ```tex
+单个文件
 workshop https://steamcommunity.com/sharedfiles/filedetails/?id=xxxxxxxxx
+合集
+workshop https://steamcommunity.com/workshop/filedetails/?id=xxxxxxxxx
 ```
 
 若开启自动识别则不需要指令前缀
