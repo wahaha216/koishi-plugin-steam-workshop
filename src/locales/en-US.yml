@@ -3,6 +3,9 @@ commands:
     description: Recongnise Steam Workshop item link
     examples: |-
       workshop https://steamcommunity.com/sharedfiles/filedetails/?id=xxxxxx
+    options:
+      download: direct download
+      info: only infomation (first priority)
     messages:
       title: title
       fileSize: fileSize

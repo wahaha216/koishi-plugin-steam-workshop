@@ -3,6 +3,9 @@ commands:
     description: 识别创意工坊物品链接
     examples: |-
       workshop https://steamcommunity.com/sharedfiles/filedetails/?id=121148626
+    options:
+      download: 不询问直接下载
+      info: 仅返回详情信息（优先级更高）
     messages:
       title: 标题
       fileSize: 文件大小

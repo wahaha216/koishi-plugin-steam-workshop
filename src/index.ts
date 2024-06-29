@@ -39,9 +39,39 @@ export function apply(ctx: Context, config: Config) {
   const logger = ctx.logger("wahaha216-steam-workshop");
   ctx
     .command("workshop <url:string>")
-    .option("yes", "-y")
+    .option("download", "-d")
     .option("info", "-i")
     .action(async ({ session, options }, url) => {
+      /**
+       * 上传文件
+       * @param url 文件网络地址
+       * @param filename 文件名
+       */
+      const uploadFile = async (url: string, filename: string) => {
+        // 因直接使用 h.file 无法上传文件，所以直接访问内部api
+        // 至少我测试时无法上传
+        if (session.bot.platform === "onebot") {
+          const path = await session.onebot.downloadFile(
+            url,
+            undefined,
+            config.threadCount
+          );
+          if (session.guild) {
+            const gid = session.event.guild.id;
+            await session.onebot
+              .uploadGroupFile(gid, path, filename)
+              .catch(logger.error);
+          } else {
+            const uid = session.event.user.id;
+            await session.onebot
+              .uploadPrivateFile(uid, path, filename)
+              .catch(logger.error);
+          }
+        } else {
+          await session.send([h.file(url)]);
+        }
+      };
+
       const id = session.messageId;
       if (regexp.test(url)) {
         const u = new URL(url);
@@ -69,7 +99,7 @@ export function apply(ctx: Context, config: Config) {
             ),
             h.image(data.preview_url),
           ];
-          if (config.askDownload) {
+          if (config.askDownload && !options.info && !options.download) {
             fragment.push(
               h.text("=".repeat(20) + "\n"),
               h.text(
@@ -81,38 +111,22 @@ export function apply(ctx: Context, config: Config) {
             );
           }
           await session.send(fragment);
+          // 如果只获取信息，则跳过后续询问
+          if (options.info) return;
 
-          const download = await session.prompt(config.inputTimeout);
-          if (!download)
-            return [h.quote(id), h.text(session.text(".input_timeout"))];
-          if (["是", "y", "yes"].includes(download.toLocaleLowerCase())) {
-            // 因直接使用 h.file 无法上传文件，所以直接访问内部api
-            // 至少我测试时无法上传
-            if (session.bot.platform === "onebot") {
-              const path = await session.onebot.downloadFile(
-                data.file_url,
-                undefined,
-                config.threadCount
-              );
-              const invalidReg = /[\\/:\*\?"\<\>\|]/g;
-              const ext = data.filename.substring(
-                data.filename.lastIndexOf(".")
-              );
-              const filename = `${data.title.replace(invalidReg, " ")}${ext}`;
-              if (session.guild) {
-                const gid = session.event.guild.id;
-                await session.onebot
-                  .uploadGroupFile(gid, path, filename)
-                  .catch(logger.error);
-              } else {
-                const uid = session.event.user.id;
-                await session.onebot
-                  .uploadPrivateFile(uid, path, filename)
-                  .catch(logger.error);
-              }
-            } else {
-              await session.send([h.file(data.file_url)]);
+          if (config.askDownload) {
+            if (!options.download) {
+              const download = await session.prompt(config.inputTimeout);
+              if (!download)
+                return [h.quote(id), h.text(session.text(".input_timeout"))];
+              if (!["是", "y", "yes"].includes(download.toLocaleLowerCase()))
+                return;
             }
+            const invalidReg = /[\\/:\*\?"\<\>\|]/g;
+            const ext = data.filename.substring(data.filename.lastIndexOf("."));
+            const filename = `${data.title.replace(invalidReg, " ")}${ext}`;
+
+            await uploadFile(data.file_url, filename);
           }
         } else {
           // 合集
@@ -151,52 +165,35 @@ export function apply(ctx: Context, config: Config) {
               );
             });
             await session.send(result);
-            await sleep(2000);
-            await session.send([
-              h.quote(id),
-              h.text(
-                session.text(".ask_download", [
-                  data.title,
-                  config.inputTimeout / 1000,
-                ])
-              ),
-            ]);
+            if (config.askDownload && !options.info && !options.download) {
+              await sleep(2000);
+              await session.send([
+                h.quote(id),
+                h.text(
+                  session.text(".ask_download", [
+                    data.title,
+                    config.inputTimeout / 1000,
+                  ])
+                ),
+              ]);
+            }
+            if (options.info) return;
 
-            const download = await session.prompt(config.inputTimeout);
-            if (!download)
-              return [h.quote(id), h.text(session.text(".input_timeout"))];
-            if (["是", "y", "yes"].includes(download.toLocaleLowerCase())) {
-              // 因直接使用 h.file 无法上传文件，所以直接访问内部api
-              // 至少我测试时无法上传
+            if (config.askDownload) {
+              if (!options.download) {
+                const download = await session.prompt(config.inputTimeout);
+                if (!download)
+                  return [h.quote(id), h.text(session.text(".input_timeout"))];
+                if (!["是", "y", "yes"].includes(download.toLocaleLowerCase()))
+                  return;
+              }
               for (const item of m_res) {
-                if (session.bot.platform === "onebot") {
-                  const path = await session.onebot.downloadFile(
-                    item.file_url,
-                    undefined,
-                    config.threadCount
-                  );
-                  const invalidReg = /[\\/:\*\?"\<\>\|]/g;
-                  const ext = item.filename.substring(
-                    item.filename.lastIndexOf(".")
-                  );
-                  const filename = `${item.title.replace(
-                    invalidReg,
-                    " "
-                  )}${ext}`;
-                  if (session.guild) {
-                    const gid = session.event.guild.id;
-                    await session.onebot
-                      .uploadGroupFile(gid, path, filename)
-                      .catch(logger.error);
-                  } else {
-                    const uid = session.event.user.id;
-                    await session.onebot
-                      .uploadPrivateFile(uid, path, filename)
-                      .catch(logger.error);
-                  }
-                } else {
-                  await session.send([h.file(item.file_url)]);
-                }
+                const invalidReg = /[\\/:\*\?"\<\>\|]/g;
+                const ext = item.filename.substring(
+                  item.filename.lastIndexOf(".")
+                );
+                const filename = `${item.title.replace(invalidReg, " ")}${ext}`;
+                await uploadFile(item.file_url, filename);
               }
             }
           }
