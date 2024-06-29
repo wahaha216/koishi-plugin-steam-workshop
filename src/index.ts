@@ -14,12 +14,20 @@ export interface Config {
   inputTimeout?: number;
 }
 
-export const Config: Schema<Config> = Schema.object({
-  autoRecognise: Schema.boolean().default(true),
-  askDownload: Schema.boolean().default(true),
-  threadCount: Schema.number().default(4).min(1).max(16),
-  inputTimeout: Schema.number().default(60000).min(5000),
-}).i18n({
+export const Config: Schema<Config> = Schema.intersect([
+  Schema.object({
+    autoRecognise: Schema.boolean().default(true),
+    askDownload: Schema.boolean().default(true),
+  }).description("基础配置"),
+  Schema.union([
+    Schema.object({
+      askDownload: Schema.const(true),
+      threadCount: Schema.number().default(4).min(1).max(16),
+      inputTimeout: Schema.number().default(60000).min(5000),
+    }),
+    Schema.object({}),
+  ]),
+]).i18n({
   "zh-CN": require("./locales/zh-CN")._config,
   "en-US": require("./locales/en-US")._config,
 });
