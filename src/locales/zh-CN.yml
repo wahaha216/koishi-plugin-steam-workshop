@@ -14,4 +14,5 @@ commands:
 _config:
   autoRecognise: 自动别创意工坊物品链接
   askDownload: 询问是否下载文件
+  threadCount: 下载线程数
   inputTimeout: 询问超时时间（毫秒）

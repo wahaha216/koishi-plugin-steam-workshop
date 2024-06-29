@@ -14,4 +14,5 @@ commands:
 _config:
   autoRecognise: Auto recongnise Steam Workshop item link
   askDownload: Ask download file
+  threadCount: download thread count
   inputTimeout: Ask download timeout, ms
