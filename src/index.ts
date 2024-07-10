@@ -18,7 +18,7 @@ export const Config: Schema<Config> = Schema.intersect([
   Schema.object({
     autoRecognise: Schema.boolean().default(true),
     askDownload: Schema.boolean().default(true),
-  }).description("基础配置"),
+  }),
   Schema.union([
     Schema.object({
       askDownload: Schema.const(true),
@@ -55,28 +55,34 @@ export function apply(ctx: Context, config: Config) {
        * @param url 文件网络地址
        * @param filename 文件名
        */
-      const uploadFile = async (url: string, filename: string) => {
+      const uploadFile = async (item: FileInfo) => {
+        const invalidReg = /[\\/:\*\?"\<\>\|]/g;
+        const ext = item.filename.substring(item.filename.lastIndexOf("."));
+        const download_name = `${item.title.replace(invalidReg, " ")}${ext}`;
+        logger.info(
+          session.text(".download_info", [download_name, item.file_url])
+        );
         // 因直接使用 h.file 无法上传文件，所以直接访问内部api
         // 至少我测试时无法上传
         if (session.bot.platform === "onebot") {
           const path = await session.onebot.downloadFile(
-            url,
+            item.file_url,
             undefined,
             config.threadCount
           );
           if (session.guild) {
             const gid = session.event.guild.id;
             await session.onebot
-              .uploadGroupFile(gid, path, filename)
+              .uploadGroupFile(gid, path, download_name)
               .catch(logger.error);
           } else {
             const uid = session.event.user.id;
             await session.onebot
-              .uploadPrivateFile(uid, path, filename)
+              .uploadPrivateFile(uid, path, download_name)
               .catch(logger.error);
           }
         } else {
-          await session.send([h.file(url)]);
+          await session.send([h.file(item.file_url)]);
         }
       };
 
@@ -95,6 +101,7 @@ export function apply(ctx: Context, config: Config) {
         if (!res) return;
         const data = res[0];
         if (data.num_children === 0) {
+          logger.info(session.text(".single_file", [data.title]));
           const fragment: h.Fragment = [
             h.quote(id),
             h.text(`${session.text(".title")}: ${data.title}\n`),
@@ -130,14 +137,11 @@ export function apply(ctx: Context, config: Config) {
               if (!["是", "y", "yes"].includes(download.toLocaleLowerCase()))
                 return;
             }
-            const invalidReg = /[\\/:\*\?"\<\>\|]/g;
-            const ext = data.filename.substring(data.filename.lastIndexOf("."));
-            const filename = `${data.title.replace(invalidReg, " ")}${ext}`;
-
-            await uploadFile(data.file_url, filename);
+            await uploadFile(data);
           }
         } else {
           // 合集
+          logger.info(session.text(".multi_file", [data.title]));
           const workIds = data.children.map((item) => item.publishedfileid);
           const m_res = await ctx.http
             .post<FileInfo[]>(
@@ -148,7 +152,7 @@ export function apply(ctx: Context, config: Config) {
             .catch(logger.error);
           if (m_res) {
             const result = segment("figure");
-            m_res.forEach((item) => {
+            const buildContent = (item: FileInfo) => {
               const fragment: h.Fragment = [
                 h.text(`${session.text(".title")}: ${item.title}\n`),
                 h.text(
@@ -171,7 +175,14 @@ export function apply(ctx: Context, config: Config) {
                   fragment
                 )
               );
-            });
+            };
+            if (data.file_type === 0) {
+              logger.info(session.text(".file_has_depend", [data.file_type]));
+              buildContent(data);
+            } else {
+              logger.info(session.text(".file_collection", [data.file_type]));
+            }
+            m_res.forEach(buildContent);
             await session.send(result);
             if (config.askDownload && !options.info && !options.download) {
               await sleep(2000);
@@ -195,13 +206,11 @@ export function apply(ctx: Context, config: Config) {
                 if (!["是", "y", "yes"].includes(download.toLocaleLowerCase()))
                   return;
               }
+              if (data.file_type === 0) {
+                await uploadFile(data);
+              }
               for (const item of m_res) {
-                const invalidReg = /[\\/:\*\?"\<\>\|]/g;
-                const ext = item.filename.substring(
-                  item.filename.lastIndexOf(".")
-                );
-                const filename = `${item.title.replace(invalidReg, " ")}${ext}`;
-                await uploadFile(item.file_url, filename);
+                await uploadFile(item);
               }
             }
           }

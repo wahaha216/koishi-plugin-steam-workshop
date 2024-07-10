@@ -16,3 +16,9 @@ workshop https://steamcommunity.com/workshop/filedetails/?id=xxxxxxxxx
 ```
 
 若开启自动识别则不需要指令前缀
+
+### 可选项
+
+`-d` 不询问直接下载
+`-i` 只返回详情，不下载
+若一起用则只有 `-i` 生效 

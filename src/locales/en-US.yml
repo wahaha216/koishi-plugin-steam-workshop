@@ -4,18 +4,23 @@ commands:
     examples: |-
       workshop https://steamcommunity.com/sharedfiles/filedetails/?id=xxxxxx
     options:
-      download: direct download
-      info: only infomation (first priority)
+      download: Direct download
+      info: Only infomation (first priority)
     messages:
-      title: title
-      fileSize: fileSize
-      game: game
-      description: description
-      ask_download: download {title} ? (Reply in {timeout} seconds 是|y|yes / 否|n|no)
+      title: Title
+      fileSize: FileSize
+      game: Game
+      description: Description
+      ask_download: Download {title} ? (Reply in {timeout} seconds 是|y|yes / 否|n|no)
       input_timeout: Input timeout
       invalid_link: Invalid link
+      single_file: "{0} is single file"
+      multi_file: "{0} is collections or has depend"
+      file_has_depend: "File type: {0}, has denpen"
+      file_collection: "File type: {0}, is collections"
+      download_info: "Filename: {0}, url: {1}"
 _config:
   autoRecognise: Auto recongnise Steam Workshop item link
   askDownload: Ask download file
-  threadCount: download thread count
+  threadCount: Download thread count
   inputTimeout: Ask download timeout, ms

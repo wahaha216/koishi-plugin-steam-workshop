@@ -2,7 +2,7 @@ commands:
   workshop:
     description: 识别创意工坊物品链接
     examples: |-
-      workshop https://steamcommunity.com/sharedfiles/filedetails/?id=121148626
+      workshop https://steamcommunity.com/sharedfiles/filedetails/?id=xxxxxx
     options:
       download: 不询问直接下载
       info: 仅返回详情信息（优先级更高）
@@ -14,6 +14,11 @@ commands:
       ask_download: 是否下载：{0}？（{1}秒内回复：是|y|yes/否|n|no）
       input_timeout: 输入超时
       invalid_link: 不正确的链接格式
+      single_file: "{0}判断为单文件"
+      multi_file: "{0}判断为多文件，合集或是有依赖文件"
+      file_has_dep: 文件类型：{0}，有依赖文件
+      file_collection: 文件类型：{0}，合集'
+      download_info: 文件名称：{0}，URL：{1}
 _config:
   autoRecognise: 自动别创意工坊物品链接
   askDownload: 询问是否下载文件
