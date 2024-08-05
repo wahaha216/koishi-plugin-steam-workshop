@@ -10,6 +10,7 @@ export const name = "steam-workshop";
 export interface Config {
   autoRecognise?: boolean;
   askDownload?: boolean;
+  downloadRetries?: number;
   threadCount?: number;
   inputTimeout?: number;
 }
@@ -22,6 +23,7 @@ export const Config: Schema<Config> = Schema.intersect([
   Schema.union([
     Schema.object({
       askDownload: Schema.const(true),
+      downloadRetries: Schema.number().default(5).min(0).max(10),
       threadCount: Schema.number().default(4).min(1).max(16),
       inputTimeout: Schema.number().default(60000).min(5000),
     }),
@@ -41,7 +43,6 @@ export function apply(ctx: Context, config: Config) {
   ctx.i18n.define("en-US", require("./locales/en-US"));
   ctx.i18n.define("zh-CN", require("./locales/zh-CN"));
 
-  // 单个文件
   const regexp =
     /^https:\/\/steamcommunity.com\/(sharedfiles|workshop)\/filedetails\/\?id=\d+/;
   const logger = ctx.logger("wahaha216-steam-workshop");
@@ -65,25 +66,38 @@ export function apply(ctx: Context, config: Config) {
         // 因直接使用 h.file 无法上传文件，所以直接访问内部api
         // 至少我测试时无法上传
         if (session.bot.platform === "onebot") {
-          const path = await session.onebot.downloadFile(
-            item.file_url,
-            undefined,
-            config.threadCount
-          );
+          let count = 0;
+          let path: string | void;
+          const maxRetry = config.downloadRetries;
+          do {
+            path = await session.onebot
+              .downloadFile(item.file_url, undefined, config.threadCount)
+              .catch(() => {
+                logger.info(
+                  session.text(".download_retry", [
+                    download_name,
+                    ++count,
+                    maxRetry,
+                  ])
+                );
+              });
+          } while (count < maxRetry && !path);
+          if (count >= maxRetry) return false;
           if (session.guild) {
             const gid = session.event.guild.id;
             await session.onebot
-              .uploadGroupFile(gid, path, download_name)
+              .uploadGroupFile(gid, path as string, download_name)
               .catch(logger.error);
           } else {
             const uid = session.event.user.id;
             await session.onebot
-              .uploadPrivateFile(uid, path, download_name)
+              .uploadPrivateFile(uid, path as string, download_name)
               .catch(logger.error);
           }
         } else {
           await session.send([h.file(item.file_url)]);
         }
+        return true;
       };
 
       const id = session.messageId;
@@ -101,6 +115,7 @@ export function apply(ctx: Context, config: Config) {
         if (!res) return;
         const data = res[0];
         if (data.num_children === 0) {
+          // 单文件
           logger.info(session.text(".single_file", [data.title]));
           const fragment: h.Fragment = [
             h.quote(id),
@@ -137,7 +152,12 @@ export function apply(ctx: Context, config: Config) {
               if (!["是", "y", "yes"].includes(download.toLocaleLowerCase()))
                 return;
             }
-            await uploadFile(data);
+            if (!(await uploadFile(data))) {
+              session.send([
+                h.quote(id),
+                h.text(session.text(".download_fail")),
+              ]);
+            }
           }
         } else {
           // 合集
@@ -209,9 +229,15 @@ export function apply(ctx: Context, config: Config) {
               if (data.file_type === 0) {
                 await uploadFile(data);
               }
+              let result = true;
               for (const item of m_res) {
-                await uploadFile(item);
+                const res = await uploadFile(item);
+                result &&= res;
               }
+              session.send([
+                h.quote(id),
+                h.text(session.text(".download_fail")),
+              ]);
             }
           }
         }
