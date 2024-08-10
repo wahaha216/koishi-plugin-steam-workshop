@@ -234,10 +234,12 @@ export function apply(ctx: Context, config: Config) {
                 const res = await uploadFile(item);
                 result &&= res;
               }
-              session.send([
-                h.quote(id),
-                h.text(session.text(".download_fail")),
-              ]);
+              if (!result) {
+                session.send([
+                  h.quote(id),
+                  h.text(session.text(".download_fail")),
+                ]);
+              }
             }
           }
         }
