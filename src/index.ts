@@ -162,15 +162,36 @@ export function apply(ctx: Context, config: Config) {
         } else {
           // 合集
           logger.info(session.text(".multi_file", [data.title]));
-          const workIds = data.children.map((item) => item.publishedfileid);
-          const m_res = await ctx.http
-            .post<FileInfo[]>(
-              "https://db.steamworkshopdownloader.io/prod/api/details/file",
-              `[${workIds.join(",")}]`,
-              { responseType: "json" }
-            )
-            .catch(logger.error);
-          if (m_res) {
+          let workIds = data.children.map((item) => item.publishedfileid);
+          const multiRes: FileInfo[] = [];
+          if (workIds.length <= 50) {
+            const res = await ctx.http
+              .post<FileInfo[]>(
+                "https://db.steamworkshopdownloader.io/prod/api/details/file",
+                `[${workIds.join(",")}]`,
+                { responseType: "json" }
+              )
+              .catch(logger.error);
+            if (res) {
+              multiRes.push(...res);
+            }
+          } else {
+            do {
+              const ids = workIds.slice(0, 50).join(",");
+              const res = await ctx.http
+                .post<FileInfo[]>(
+                  "https://db.steamworkshopdownloader.io/prod/api/details/file",
+                  `[${ids}]`,
+                  { responseType: "json" }
+                )
+                .catch(logger.error);
+              if (res) {
+                multiRes.push(...res);
+              }
+              workIds.splice(0, 50);
+            } while (workIds.length <= 50);
+          }
+          if (multiRes) {
             const result = segment("figure");
             const buildContent = (item: FileInfo) => {
               const fragment: h.Fragment = [
@@ -202,7 +223,7 @@ export function apply(ctx: Context, config: Config) {
             } else {
               logger.info(session.text(".file_collection", [data.file_type]));
             }
-            m_res.forEach(buildContent);
+            multiRes.forEach(buildContent);
             await session.send(result);
             if (config.askDownload && !options.info && !options.download) {
               await sleep(2000);
@@ -230,7 +251,7 @@ export function apply(ctx: Context, config: Config) {
                 await uploadFile(data);
               }
               let result = true;
-              for (const item of m_res) {
+              for (const item of multiRes) {
                 const res = await uploadFile(item);
                 result &&= res;
               }
