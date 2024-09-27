@@ -51,53 +51,14 @@ export function apply(ctx: Context, config: Config) {
     .option("download", "-d")
     .option("info", "-i")
     .action(async ({ session, options }, url) => {
-      /**
-       * 上传文件
-       * @param url 文件网络地址
-       * @param filename 文件名
-       */
-      const uploadFile = async (item: FileInfo) => {
+      const formatFileName = (item: FileInfo) => {
         const invalidReg = /[\\/:\*\?"\<\>\|]/g;
         const ext = item.filename.substring(item.filename.lastIndexOf("."));
         const download_name = `${item.title.replace(invalidReg, " ")}${ext}`;
         logger.info(
           session.text(".download_info", [download_name, item.file_url])
         );
-        // 因直接使用 h.file 无法上传文件，所以直接访问内部api
-        // 至少我测试时无法上传
-        if (session.bot.platform === "onebot") {
-          let count = 0;
-          let path: string | void;
-          const maxRetry = config.downloadRetries;
-          do {
-            path = await session.onebot
-              .downloadFile(item.file_url, undefined, config.threadCount)
-              .catch(() => {
-                logger.info(
-                  session.text(".download_retry", [
-                    download_name,
-                    ++count,
-                    maxRetry,
-                  ])
-                );
-              });
-          } while (count < maxRetry && !path);
-          if (count >= maxRetry) return false;
-          if (session.guild) {
-            const gid = session.event.guild.id;
-            await session.onebot
-              .uploadGroupFile(gid, path as string, download_name)
-              .catch(logger.error);
-          } else {
-            const uid = session.event.user.id;
-            await session.onebot
-              .uploadPrivateFile(uid, path as string, download_name)
-              .catch(logger.error);
-          }
-        } else {
-          await session.send([h.file(item.file_url)]);
-        }
-        return true;
+        return download_name;
       };
 
       const id = session.messageId;
@@ -152,12 +113,16 @@ export function apply(ctx: Context, config: Config) {
               if (!["是", "y", "yes"].includes(download.toLocaleLowerCase()))
                 return;
             }
-            if (!(await uploadFile(data))) {
-              session.send([
-                h.quote(id),
-                h.text(session.text(".download_fail")),
-              ]);
-            }
+            const title = formatFileName(data);
+            await session
+              .send([h.file(data.file_url, { title })])
+              .catch((err) => {
+                session.send([
+                  h.quote(id),
+                  h.text(session.text(".download_fail")),
+                ]);
+                logger.error(err);
+              });
           }
         } else {
           // 合集
@@ -247,13 +212,24 @@ export function apply(ctx: Context, config: Config) {
                 if (!["是", "y", "yes"].includes(download.toLocaleLowerCase()))
                   return;
               }
-              if (data.file_type === 0) {
-                await uploadFile(data);
-              }
               let result = true;
+              if (data.file_type === 0) {
+                const title = formatFileName(data);
+                await session
+                  .send([h.file(data.file_url, { title })])
+                  .catch((err) => {
+                    result = false;
+                    logger.error(err);
+                  });
+              }
               for (const item of multiRes) {
-                const res = await uploadFile(item);
-                result &&= res;
+                const title = formatFileName(data);
+                session
+                  .send([h.file(item.file_url, { title })])
+                  .catch((err) => {
+                    result = false;
+                    logger.error(err);
+                  });
               }
               if (!result) {
                 session.send([
