@@ -21,6 +21,7 @@ commands:
       download_info: "Filename: {0}, url: {1}"
       download_retry: File '{0}' download failed, retrying ({1}/{2})
       download_fail: (Some) file download failed
+      request_fail: Get steam workshop info failed
 _config:
   autoRecognise: Auto recongnise Steam Workshop item link
   askDownload: Ask download file

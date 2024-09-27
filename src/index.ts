@@ -136,7 +136,13 @@ export function apply(ctx: Context, config: Config) {
                 `[${workIds.join(",")}]`,
                 { responseType: "json" }
               )
-              .catch(logger.error);
+              .catch((err) => {
+                logger.error(err);
+                session.send([
+                  h.quote(id),
+                  h.text(session.text(".request_fail")),
+                ]);
+              });
             if (res) {
               multiRes.push(...res);
             }
