@@ -52,9 +52,10 @@ export function apply(ctx: Context, config: Config) {
     .option("info", "-i")
     .action(async ({ session, options }, url) => {
       const formatFileName = (item: FileInfo) => {
-        const invalidReg = /[\\/:\*\?"\<\>\|]/g;
+        const invalidReg = /[\\/:\*\?"\<\>\|\r\n]/g;
         const ext = item.filename.substring(item.filename.lastIndexOf("."));
-        const download_name = `${item.title.replace(invalidReg, " ")}${ext}`;
+        const name = item.title.replace(invalidReg, " ");
+        const download_name = `${name.trim()}${ext}`;
         logger.info(
           session.text(".download_info", [download_name, item.file_url])
         );
