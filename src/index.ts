@@ -229,8 +229,8 @@ export function apply(ctx: Context, config: Config) {
                   });
               }
               for (const item of multiRes) {
-                const title = formatFileName(data);
-                session
+                const title = formatFileName(item);
+                await session
                   .send([h.file(item.file_url, { title })])
                   .catch((err) => {
                     result = false;
