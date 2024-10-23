@@ -1,6 +1,6 @@
 import { Context, Schema, h, segment, sleep } from "koishi";
 import { FileInfo } from "./types";
-import { sizeFormat } from "./utils/sizeFormat";
+import { sizeFormat, timestampToDate } from "./utils/sizeFormat";
 import {} from "@koishijs/plugin-logger";
 import {} from "@koishijs/plugin-http";
 import {} from "koishi-plugin-adapter-onebot";
@@ -99,6 +99,16 @@ export function apply(ctx: Context, config: Config) {
           const fragment: h.Fragment = [
             h.quote(id),
             h.text(`${session.text(".title")}: ${data.title}\n`),
+            h.text(
+              `${session.text(".releaseTime")}: ${timestampToDate(
+                data.time_created * 1000
+              )}\n`
+            ),
+            h.text(
+              `${session.text(".updateTime")}: ${timestampToDate(
+                data.time_updated * 1000
+              )}\n`
+            ),
             h.text(
               `${session.text(".fileSize")}: ${sizeFormat(data.file_size)}\n`
             ),

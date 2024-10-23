@@ -8,6 +8,8 @@ commands:
       info: Only infomation (first priority)
     messages:
       title: Title
+      releaseTime: Release Time
+      updateTime: Update Time
       fileSize: FileSize
       game: Game
       description: Description

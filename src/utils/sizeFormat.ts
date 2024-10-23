@@ -13,3 +13,13 @@ export const sizeFormat = (size: number | string) => {
     return `${(size / 1024 ** 3).toFixed(2)} GB`;
   }
 };
+
+export const timestampToDate = (timestamp: number) => {
+  const now = new Date(timestamp);
+  const y = now.getFullYear();
+  const m = now.getMonth() + 1;
+  const mm = m < 10 ? `0${m}` : m;
+  const d = now.getDate();
+  const dd = d < 10 ? `0${d}` : d;
+  return `${y}-${mm}-${dd} ${now.toTimeString().substring(0, 8)}`;
+};

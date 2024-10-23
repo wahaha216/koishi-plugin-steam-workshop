@@ -8,6 +8,8 @@ commands:
       info: 仅返回详情信息（优先级更高）
     messages:
       title: 标题
+      releaseTime: 发布时间
+      updateTime: 更新时间
       fileSize: 文件大小
       game: 游戏
       description: 描述
