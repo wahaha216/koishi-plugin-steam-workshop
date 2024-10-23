@@ -19,12 +19,14 @@ commands:
       file_has_dep: 文件类型：{0}，有依赖文件
       file_collection: 文件类型：{0}，合集'
       download_info: 文件名称：{0}，URL：{1}
-      download_retry: 文件{0}下载失败，正在重试（{1}/{2}）
+      download_retry: 文件{0}下载失败，正在重试 {1}/{2}
       download_fail: （部分）文件下载失败
       request_fail: 获取创意工坊信息失败
+      request_retry: 获取创意工坊信息失败，正在重试 {0}/{1}
 _config:
   autoRecognise: 自动识别创意工坊物品链接
   askDownload: 询问是否下载文件
+  requestRetries: 请求重试次数，0为不重试
   downloadRetries: 下载重试次数，0为不重试
   threadCount: 下载线程数
   inputTimeout: 询问超时时间（毫秒）

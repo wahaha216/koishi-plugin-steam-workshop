@@ -19,12 +19,14 @@ commands:
       file_has_depend: "File type: {0}, has denpen"
       file_collection: "File type: {0}, is collections"
       download_info: "Filename: {0}, url: {1}"
-      download_retry: File '{0}' download failed, retrying ({1}/{2})
+      download_retry: File '{0}' download failed, retrying {1}/{2}
       download_fail: (Some) file download failed
       request_fail: Get steam workshop info failed
+      request_retry: Get steam workshop info failed, retrying {1}/{2}
 _config:
   autoRecognise: Auto recongnise Steam Workshop item link
   askDownload: Ask download file
+  requestRetries: Request retries, 0 for no retries
   downloadRetries: Download retries, 0 for no retries
   threadCount: Download thread count
   inputTimeout: Ask download timeout, ms

@@ -10,6 +10,7 @@ export const name = "steam-workshop";
 export interface Config {
   autoRecognise?: boolean;
   askDownload?: boolean;
+  requestRetries?: number;
   downloadRetries?: number;
   threadCount?: number;
   inputTimeout?: number;
@@ -23,6 +24,7 @@ export const Config: Schema<Config> = Schema.intersect([
   Schema.union([
     Schema.object({
       askDownload: Schema.const(true),
+      requestRetries: Schema.number().default(5).min(0).max(10),
       downloadRetries: Schema.number().default(5).min(0).max(10),
       threadCount: Schema.number().default(4).min(1).max(16),
       inputTimeout: Schema.number().default(60000).min(5000),
@@ -66,13 +68,28 @@ export function apply(ctx: Context, config: Config) {
       if (regexp.test(url)) {
         const u = new URL(url);
         const workId = u.searchParams.get("id");
-        const res = await ctx.http
-          .post<FileInfo[]>(
-            "https://db.steamworkshopdownloader.io/prod/api/details/file",
-            `[${workId}]`,
-            { responseType: "json" }
-          )
-          .catch(logger.error);
+
+        let res: FileInfo[];
+        let error: Error;
+        for (let i = 1; i <= config.requestRetries; i++) {
+          await ctx.http
+            .post<FileInfo[]>(
+              "https://db.steamworkshopdownloader.io/prod/api/details/file",
+              `[${workId}]`,
+              { responseType: "json" }
+            )
+            .then((r) => {
+              res = r;
+              error = null;
+            })
+            .catch((err) => {
+              logger.info(
+                session.text(".request_retry", [i, config.requestRetries])
+              );
+              error = err;
+            });
+        }
+        error && logger.error(error);
 
         if (!res) return;
         const data = res[0];
