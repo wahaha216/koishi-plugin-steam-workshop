@@ -83,9 +83,8 @@ export function apply(ctx: Context, config: Config) {
               error = null;
             })
             .catch((err) => {
-              logger.info(
-                session.text(".request_retry", [i, config.requestRetries])
-              );
+              const retries = config.requestRetries;
+              logger.info(session.text(".request_retry", [i, retries]));
               error = err;
             });
         }
@@ -142,15 +141,28 @@ export function apply(ctx: Context, config: Config) {
                 return;
             }
             const title = formatFileName(data);
-            await session
-              .send([h.file(data.file_url, { title })])
-              .catch((err) => {
-                session.send([
-                  h.quote(id),
-                  h.text(session.text(".download_fail")),
-                ]);
-                logger.error(err);
-              });
+            const retries = config.downloadRetries;
+            let success = true;
+            for (let i = 0; i <= retries; i++) {
+              const result = await session.send([
+                h.file(data.file_url, { title }),
+              ]);
+              if ((result as string[]).length) {
+                return;
+              } else if (i === retries - 1) {
+                success = false;
+              } else {
+                logger.info(
+                  session.text(".download_retry", [title, i + 1, retries])
+                );
+              }
+            }
+            if (!success) {
+              session.send([
+                h.quote(id),
+                h.text(session.text(".download_fail")),
+              ]);
+            }
           }
         } else {
           // 合集
@@ -246,26 +258,37 @@ export function apply(ctx: Context, config: Config) {
                 if (!["是", "y", "yes"].includes(download.toLocaleLowerCase()))
                   return;
               }
-              let result = true;
+              let success = true;
               if (data.file_type === 0) {
-                const title = formatFileName(data);
-                await session
-                  .send([h.file(data.file_url, { title })])
-                  .catch((err) => {
-                    result = false;
-                    logger.error(err);
-                  });
+                multiRes.unshift(data);
               }
-              for (const item of multiRes) {
-                const title = formatFileName(item);
-                await session
-                  .send([h.file(item.file_url, { title })])
-                  .catch((err) => {
-                    result = false;
-                    logger.error(err);
-                  });
+              let failIds = multiRes.map((item) => item.publishedfileid);
+              const retries = config.downloadRetries;
+              for (let i = 0; i <= retries; i++) {
+                const list = multiRes.filter((item) =>
+                  failIds.some((id) => id === item.publishedfileid)
+                );
+                for (const item of list) {
+                  const title = formatFileName(item);
+                  const result = await session.send([
+                    h.file(item.file_url, { title }),
+                  ]);
+                  if ((result as string[]).length) {
+                    const index = failIds.indexOf(item.publishedfileid);
+                    if (index !== -1) {
+                      failIds.splice(index, 1);
+                    }
+                  } else if (i === retries - 1) {
+                    success = false;
+                  }
+                }
+                if (failIds.length) {
+                  logger.info(
+                    session.text(".download_retry", ["", i + 1, retries])
+                  );
+                }
               }
-              if (!result) {
+              if (!success) {
                 session.send([
                   h.quote(id),
                   h.text(session.text(".download_fail")),
