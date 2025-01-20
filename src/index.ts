@@ -52,8 +52,10 @@ export function apply(ctx: Context, config: Config) {
     .command("workshop <url:string>")
     .option("download", "-d")
     .option("info", "-i")
+    .option("name", "-n [name:string]")
     .action(async ({ session, options }, url) => {
       const formatFileName = (item: FileInfo) => {
+        if (options.name) return options.name;
         const invalidReg = /[\\/:\*\?"\<\>\|\r\n]/g;
         const ext = item.filename.substring(item.filename.lastIndexOf("."));
         const name = item.title.replace(invalidReg, " ");
