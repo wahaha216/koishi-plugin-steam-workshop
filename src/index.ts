@@ -76,7 +76,7 @@ export function apply(ctx: Context, config: Config) {
         for (let i = 1; i <= config.requestRetries && !res?.length; i++) {
           await ctx.http
             .post<FileInfo[]>(
-              "https://db.steamworkshopdownloader.io/prod/api/details/file",
+              "https://steamworkshopdownloader.io/api/details/file",
               `[${workId}]`,
               { responseType: "json" }
             )
