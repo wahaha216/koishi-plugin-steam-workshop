@@ -7,6 +7,8 @@ import {} from "koishi-plugin-adapter-onebot";
 
 export const name = "steam-workshop";
 
+const WORKSHOP_API = "https://steamworkshopdownloader.io/api/details/file";
+
 export interface Config {
   autoRecognise?: boolean;
   askDownload?: boolean;
@@ -75,11 +77,9 @@ export function apply(ctx: Context, config: Config) {
         let error: Error;
         for (let i = 1; i <= config.requestRetries && !res?.length; i++) {
           await ctx.http
-            .post<FileInfo[]>(
-              "https://steamworkshopdownloader.io/api/details/file",
-              `[${workId}]`,
-              { responseType: "json" }
-            )
+            .post<FileInfo[]>(WORKSHOP_API, `[${workId}]`, {
+              responseType: "json",
+            })
             .then((r) => {
               res = r;
               error = null;
@@ -171,19 +171,15 @@ export function apply(ctx: Context, config: Config) {
           logger.info(session.text(".multi_file", [data.title]));
           let workIds = data.children.map((item) => item.publishedfileid);
           const multiRes: FileInfo[] = [];
+          let status = true;
           if (workIds.length <= 50) {
             const res = await ctx.http
-              .post<FileInfo[]>(
-                "https://db.steamworkshopdownloader.io/prod/api/details/file",
-                `[${workIds.join(",")}]`,
-                { responseType: "json" }
-              )
+              .post<FileInfo[]>(WORKSHOP_API, `[${workIds.join(",")}]`, {
+                responseType: "json",
+              })
               .catch((err) => {
                 logger.error(err);
-                session.send([
-                  h.quote(id),
-                  h.text(session.text(".request_fail")),
-                ]);
+                status = false;
               });
             if (res) {
               multiRes.push(...res);
@@ -192,17 +188,22 @@ export function apply(ctx: Context, config: Config) {
             do {
               const ids = workIds.slice(0, 50).join(",");
               const res = await ctx.http
-                .post<FileInfo[]>(
-                  "https://db.steamworkshopdownloader.io/prod/api/details/file",
-                  `[${ids}]`,
-                  { responseType: "json" }
-                )
-                .catch(logger.error);
+                .post<FileInfo[]>(WORKSHOP_API, `[${ids}]`, {
+                  responseType: "json",
+                })
+                .catch((err) => {
+                  logger.error(err);
+                  status = false;
+                });
               if (res) {
                 multiRes.push(...res);
               }
               workIds.splice(0, 50);
             } while (workIds.length <= 50);
+          }
+          if (!status) {
+            session.send([h.quote(id), h.text(session.text(".request_fail"))]);
+            return;
           }
           if (multiRes) {
             const result = segment("figure");
