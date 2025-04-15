@@ -26,9 +26,23 @@ commands:
       request_fail: Get steam workshop info failed
       request_retry: Get steam workshop info failed, retrying {1}/{2}
 _config:
-  autoRecognise: Auto recongnise Steam Workshop item link
-  askDownload: Ask download file
-  requestRetries: Request retries, 0 for no retries
-  downloadRetries: Download retries, 0 for no retries
-  threadCount: Download thread count
-  inputTimeout: Ask download timeout, ms
+  - $desc: Basic settings
+    autoRecognise: Auto recongnise Steam Workshop item link
+    askDownload: Ask download file
+  - requestRetries: Request retries, 0 for no retries
+    downloadRetries: Download retries, 0 for no retries
+    threadCount: Download thread count
+    inputTimeout: Ask download timeout, ms
+  - $desc: RPC settings
+    rpc: Whether to enable rpc push
+  - rpcIp: IP address
+    rpcPort: port
+    rpcSecure: Encrypted connection
+    rpcSecret: "Optional: Authorization token"
+    rpcPolling: Polling time interval, milliseconds
+    rpcPollingCount: Number of polling times
+    rpcDir: Storage path
+rpc:
+  push: The download link has been pushed to the server
+  complete: Server download completed
+  timeout: The server has not been downloaded within the specified time and will not wait any longer. Please check the remote server yourself.

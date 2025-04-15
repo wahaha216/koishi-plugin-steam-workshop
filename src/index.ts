@@ -1,9 +1,10 @@
-import { Context, Schema, h, segment, sleep } from "koishi";
-import { FileInfo } from "./types";
+import { Context, HTTP, Logger, Schema, h, segment, sleep } from "koishi";
 import { sizeFormat, timestampToDate } from "./utils/sizeFormat";
+import { FileInfo } from "./types";
+import { Aria2Params, Aria2Respond, Aria2TellStatus } from "./types/Aria2";
 import {} from "@koishijs/plugin-logger";
 import {} from "@koishijs/plugin-http";
-import {} from "koishi-plugin-adapter-onebot";
+import { requestWithRetry } from "./utils";
 
 export const name = "steam-workshop";
 
@@ -16,6 +17,14 @@ export interface Config {
   downloadRetries?: number;
   threadCount?: number;
   inputTimeout?: number;
+  rpc?: boolean;
+  rpcIp?: string;
+  rpcPort?: number;
+  rpcSecure?: boolean;
+  rpcSecret?: string;
+  rpcPolling?: number;
+  rpcPollingCount?: number;
+  rpcDir?: string;
 }
 
 export const Config: Schema<Config> = Schema.intersect([
@@ -33,6 +42,22 @@ export const Config: Schema<Config> = Schema.intersect([
     }),
     Schema.object({}),
   ]),
+  Schema.object({
+    rpc: Schema.boolean().default(false),
+  }),
+  Schema.union([
+    Schema.object({
+      rpc: Schema.const(true).required(),
+      rpcIp: Schema.string().required(),
+      rpcPort: Schema.number().default(6800).min(1).max(65535),
+      rpcSecure: Schema.boolean().default(false),
+      rpcSecret: Schema.string(),
+      rpcPolling: Schema.number().default(10000).min(1000),
+      rpcPollingCount: Schema.number().default(60).min(1),
+      rpcDir: Schema.string().required(),
+    }),
+    Schema.object({}),
+  ]),
 ]).i18n({
   "zh-CN": require("./locales/zh-CN")._config,
   "en-US": require("./locales/en-US")._config,
@@ -42,6 +67,10 @@ export const inject = {
   required: ["http", "logger"],
 };
 
+export let http: HTTP;
+export let logger: Logger;
+export let retryCount: number;
+
 export function apply(ctx: Context, config: Config) {
   // write your plugin here
   ctx.i18n.define("en-US", require("./locales/en-US"));
@@ -49,13 +78,18 @@ export function apply(ctx: Context, config: Config) {
 
   const regexp =
     /^https:\/\/steamcommunity.com\/(sharedfiles|workshop)\/filedetails\/\?id=\d+/;
-  const logger = ctx.logger("wahaha216-steam-workshop");
+
+  logger = ctx.logger("wahaha216-steam-workshop");
+  http = ctx.http;
+  retryCount = config.requestRetries;
+
   ctx
     .command("workshop <url:string>")
     .option("download", "-d")
     .option("info", "-i")
     .option("name", "-n [name:string]")
     .action(async ({ session, options }, url) => {
+      const id = session.messageId;
       const formatFileName = (item: FileInfo) => {
         if (options.name) return options.name;
         const invalidReg = /[\\/:\*\?"\<\>\|\r\n]/g;
@@ -68,31 +102,73 @@ export function apply(ctx: Context, config: Config) {
         return download_name;
       };
 
-      const id = session.messageId;
+      const rpcRequest = async <T = Aria2Respond>(
+        method: "aria2.addUri" | "aria2.tellStatus",
+        params: Aria2Params
+      ) => {
+        const protocol = config.rpcSecure ? "https://" : "http://";
+        const url = `${protocol}${config.rpcIp}:${config.rpcPort}/jsonrpc`;
+        return await requestWithRetry<T>(url, "POST", {
+          data: {
+            //消息id，aria2会原样返回这个id，可以自动生成也可以用其他唯一标识
+            id: new Date().getTime().toString(),
+            //固定值
+            jsonrpc: "2.0",
+            //方法名，具体参考上方“方法列表”链接，本例中为“添加下载任务”
+            method,
+            //params为数组
+            params,
+          },
+        });
+      };
+
+      const rpcServer = async (url: string, fileName: string) => {
+        const token = `token:${config.rpcSecret}`;
+        const addTaskParams: Aria2Params = [
+          token,
+          [url],
+          { dir: config.rpcDir, out: fileName },
+        ];
+        if (!config.rpcSecret) addTaskParams.shift();
+        const addTaskRes = await rpcRequest("aria2.addUri", addTaskParams);
+        await session.send([h.quote(id), h.text(session.text("rpc.push"))]);
+        const key = addTaskRes.result;
+
+        let intervalCount = 0;
+        do {
+          await ctx.sleep(config.rpcPolling);
+          try {
+            const statusParams: Aria2Params = [token, key];
+            if (!config.rpcSecret) statusParams.shift();
+            const statusRes = await rpcRequest<Aria2Respond<Aria2TellStatus>>(
+              "aria2.tellStatus",
+              statusParams
+            );
+
+            if (statusRes.result.status === "complete") {
+              return await session.send([
+                h.quote(id),
+                h.text(session.text("rpc.complete")),
+              ]);
+            }
+          } catch (error) {}
+          intervalCount++;
+        } while (intervalCount < config.rpcPollingCount);
+        return await session.send([
+          h.quote(id),
+          h.text(session.text("rpc.timeout")),
+        ]);
+      };
+
       if (regexp.test(url)) {
         const u = new URL(url);
         const workId = u.searchParams.get("id");
 
-        let res: FileInfo[];
-        let error: Error;
-        for (let i = 1; i <= config.requestRetries && !res?.length; i++) {
-          await ctx.http
-            .post<FileInfo[]>(WORKSHOP_API, `[${workId}]`, {
-              responseType: "json",
-            })
-            .then((r) => {
-              res = r;
-              error = null;
-            })
-            .catch((err) => {
-              const retries = config.requestRetries;
-              logger.info(session.text(".request_retry", [i, retries]));
-              error = err;
-            });
-        }
-        error && logger.error(error);
+        const res = await requestWithRetry<FileInfo[]>(WORKSHOP_API, "POST", {
+          data: `[${workId}]`,
+          responseType: "json",
+        });
 
-        if (!res) return;
         const data = res[0];
         if (data.num_children === 0) {
           // 单文件
@@ -149,6 +225,7 @@ export function apply(ctx: Context, config: Config) {
               const result = await session.send([
                 h.file(data.file_url, { title }),
               ]);
+              rpcServer(data.file_url, title);
               if ((result as string[]).length) {
                 return;
               } else if (i === retries - 1) {
@@ -171,33 +248,22 @@ export function apply(ctx: Context, config: Config) {
           logger.info(session.text(".multi_file", [data.title]));
           let workIds = data.children.map((item) => item.publishedfileid);
           const multiRes: FileInfo[] = [];
-          let status = true;
           if (workIds.length <= 50) {
-            const res = await ctx.http
-              .post<FileInfo[]>(WORKSHOP_API, `[${workIds.join(",")}]`, {
-                responseType: "json",
-              })
-              .catch((err) => {
-                logger.error(err);
-                status = false;
-              });
-            if (res) {
-              multiRes.push(...res);
-            }
+            const res = await requestWithRetry<FileInfo[]>(
+              WORKSHOP_API,
+              "POST",
+              { data: `[${workIds.join(",")}]`, responseType: "json" }
+            );
+            multiRes.push(...res);
           } else {
             do {
               const ids = workIds.slice(0, 50).join(",");
-              const res = await ctx.http
-                .post<FileInfo[]>(WORKSHOP_API, `[${ids}]`, {
-                  responseType: "json",
-                })
-                .catch((err) => {
-                  logger.error(err);
-                  status = false;
-                });
-              if (res) {
-                multiRes.push(...res);
-              }
+              const res = await requestWithRetry<FileInfo[]>(
+                WORKSHOP_API,
+                "POST",
+                { data: `[${ids}]`, responseType: "json" }
+              );
+              multiRes.push(...res);
               workIds.splice(0, 50);
             } while (workIds.length <= 50);
           }
@@ -276,6 +342,7 @@ export function apply(ctx: Context, config: Config) {
                   const result = await session.send([
                     h.file(item.file_url, { title }),
                   ]);
+                  rpcServer(item.file_url, title);
                   if ((result as string[]).length) {
                     const index = failIds.indexOf(item.publishedfileid);
                     if (index !== -1) {
