@@ -43,6 +43,7 @@ _config:
     rpcPollingCount: Number of polling times
     rpcDir: Storage path
 rpc:
-  push: The download link has been pushed to the server
-  complete: Server download completed
-  timeout: The server has not been downloaded within the specified time and will not wait any longer. Please check the remote server yourself.
+  push: "The {0} download link has been pushed to the server"
+  complete: "{0} Download completed"
+  error: "{0} Download failed, please check the remote server yourself"
+  timeout: "{0} The download was not completed within the specified time ({1}). No more waiting. Please check the remote server yourself."

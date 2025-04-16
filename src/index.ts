@@ -131,7 +131,10 @@ export function apply(ctx: Context, config: Config) {
         ];
         if (!config.rpcSecret) addTaskParams.shift();
         const addTaskRes = await rpcRequest("aria2.addUri", addTaskParams);
-        await session.send([h.quote(id), h.text(session.text("rpc.push"))]);
+        await session.send([
+          h.quote(id),
+          h.text(session.text("rpc.push", [fileName])),
+        ]);
         const key = addTaskRes.result;
 
         let intervalCount = 0;
@@ -145,18 +148,26 @@ export function apply(ctx: Context, config: Config) {
               statusParams
             );
 
-            if (statusRes.result.status === "complete") {
-              return await session.send([
-                h.quote(id),
-                h.text(session.text("rpc.complete")),
-              ]);
+            switch (statusRes.result.status) {
+              case "complete":
+                return await session.send([
+                  h.quote(id),
+                  h.text(session.text("rpc.complete", [fileName])),
+                ]);
+              case "error":
+                return await session.send([
+                  h.quote(id),
+                  h.text(session.text("rpc.error", [fileName])),
+                ]);
+              default:
+                break;
             }
           } catch (error) {}
           intervalCount++;
         } while (intervalCount < config.rpcPollingCount);
         return await session.send([
           h.quote(id),
-          h.text(session.text("rpc.timeout")),
+          h.text(session.text("rpc.timeout", [fileName])),
         ]);
       };
 
