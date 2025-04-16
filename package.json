@@ -1,7 +1,7 @@
 {
   "name": "@wahaha216/koishi-plugin-steam-workshop",
-  "description": "从steam创意工坊获取信息",
-  "version": "1.0.0-rc.0",
+  "description": "从 steam 创意工坊获取文件并上传，可选RPC推送至服务器下载",
+  "version": "1.0.0-rc.1",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
@@ -34,8 +34,8 @@
   },
   "koishi": {
     "description": {
-      "en": "Get information from the Steam Workshop",
-      "zh": "从steam创意工坊获取信息"
+      "en": "Get files from steam creative workshop and upload them, optional RPC push to server to download",
+      "zh": "从 steam 创意工坊获取文件并上传，可选RPC推送至服务器下载"
     },
     "service": {
       "required": [
