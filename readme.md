@@ -2,7 +2,7 @@
 
 [![npm](https://img.shields.io/npm/v/@wahaha216/koishi-plugin-steam-workshop?style=flat-square)](https://www.npmjs.com/package/@wahaha216/koishi-plugin-steam-workshop)
 
-从 steam 创意工坊获取文件并上传
+从 steam 创意工坊获取文件并上传，可选RPC推送至服务器下载
 
 > 仅在 `onebot` QQ私聊与群聊中测试过，不保证其他环境能用
 
