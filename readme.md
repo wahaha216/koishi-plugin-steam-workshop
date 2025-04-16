@@ -24,3 +24,4 @@ workshop https://steamcommunity.com/workshop/filedetails/?id=xxxxxxxxx
 `-d` 不询问直接下载
 `-i` 只返回详情，不下载
 若一起用则只有 `-i` 生效 
+`-n` 指定下载文件名，包括扩展名
