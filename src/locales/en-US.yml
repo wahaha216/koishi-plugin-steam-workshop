@@ -25,6 +25,7 @@ commands:
       download_fail: (Some) file download failed
       request_fail: Get steam workshop info failed
       request_retry: Get steam workshop info failed, retrying {1}/{2}
+      ask_push: "Is the download address pushed to the server? (Reply within {0} seconds: Yes |y|yes/No |n|no)"
 _config:
   - $desc: Basic settings
     autoRecognise: Auto recongnise Steam Workshop item link

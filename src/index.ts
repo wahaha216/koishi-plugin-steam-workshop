@@ -88,6 +88,7 @@ export function apply(ctx: Context, config: Config) {
     .option("download", "-d")
     .option("info", "-i")
     .option("name", "-n [name:string]")
+    .option("push", "-p")
     .action(async ({ session, options }, url) => {
       const id = session.messageId;
       const formatFileName = (item: FileInfo) => {
@@ -229,6 +230,15 @@ export function apply(ctx: Context, config: Config) {
               if (!["是", "y", "yes"].includes(download.toLocaleLowerCase()))
                 return;
             }
+            let push = options.push || false;
+            if (!options.push) {
+              await session.send([
+                h.quote(id),
+                h.text(session.text(".ask_push"), [config.inputTimeout / 1000]),
+              ]);
+              const ans = await session.prompt(config.inputTimeout);
+              push = ["是", "y", "yes"].includes(ans.toLocaleLowerCase());
+            }
             const title = formatFileName(data);
             const retries = config.downloadRetries;
             let success = true;
@@ -236,7 +246,7 @@ export function apply(ctx: Context, config: Config) {
               const result = await session.send([
                 h.file(data.file_url, { title }),
               ]);
-              rpcServer(data.file_url, title);
+              if (push) rpcServer(data.file_url, title);
               if ((result as string[]).length) {
                 return;
               } else if (i === retries - 1) {
@@ -338,6 +348,17 @@ export function apply(ctx: Context, config: Config) {
                 if (!["是", "y", "yes"].includes(download.toLocaleLowerCase()))
                   return;
               }
+              let push = options.push || false;
+              if (!options.push) {
+                await session.send([
+                  h.quote(id),
+                  h.text(session.text(".ask_push"), [
+                    config.inputTimeout / 1000,
+                  ]),
+                ]);
+                const ans = await session.prompt(config.inputTimeout);
+                push = ["是", "y", "yes"].includes(ans.toLocaleLowerCase());
+              }
               let success = true;
               if (data.file_type === 0) {
                 multiRes.unshift(data);
@@ -353,7 +374,7 @@ export function apply(ctx: Context, config: Config) {
                   const result = await session.send([
                     h.file(item.file_url, { title }),
                   ]);
-                  rpcServer(item.file_url, title);
+                  if (push) rpcServer(item.file_url, title);
                   if ((result as string[]).length) {
                     const index = failIds.indexOf(item.publishedfileid);
                     if (index !== -1) {

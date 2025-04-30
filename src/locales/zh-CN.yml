@@ -25,6 +25,7 @@ commands:
       download_fail: （部分）文件下载失败
       request_fail: 获取创意工坊信息失败
       request_retry: 获取创意工坊信息失败，正在重试 {0}/{1}
+      ask_push: 是否将下载地址推送至服务器？（{0}秒内回复：是|y|yes/否|n|no）
 _config:
   - $desc: 基础设置
     autoRecognise: 自动识别创意工坊物品链接
