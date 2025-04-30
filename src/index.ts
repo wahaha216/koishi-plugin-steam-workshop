@@ -91,6 +91,7 @@ export function apply(ctx: Context, config: Config) {
     .option("push", "-p")
     .action(async ({ session, options }, url) => {
       const id = session.messageId;
+      const timeout = config.inputTimeout / 1000;
       const formatFileName = (item: FileInfo) => {
         if (options.name) return options.name;
         const invalidReg = /[\\/:\*\?"\<\>\|\r\n]/g;
@@ -210,12 +211,7 @@ export function apply(ctx: Context, config: Config) {
           if (config.askDownload && !options.info && !options.download) {
             fragment.push(
               h.text("=".repeat(20) + "\n"),
-              h.text(
-                session.text(".ask_download", [
-                  data.title,
-                  config.inputTimeout / 1000,
-                ])
-              )
+              h.text(session.text(".ask_download", [data.title, timeout]))
             );
           }
           await session.send(fragment);
@@ -234,7 +230,7 @@ export function apply(ctx: Context, config: Config) {
             if (!options.push) {
               await session.send([
                 h.quote(id),
-                h.text(session.text(".ask_push"), [config.inputTimeout / 1000]),
+                h.text(session.text(".ask_push"), [timeout]),
               ]);
               const ans = await session.prompt(config.inputTimeout);
               push = ["是", "y", "yes"].includes(ans.toLocaleLowerCase());
@@ -330,12 +326,7 @@ export function apply(ctx: Context, config: Config) {
               await sleep(2000);
               await session.send([
                 h.quote(id),
-                h.text(
-                  session.text(".ask_download", [
-                    data.title,
-                    config.inputTimeout / 1000,
-                  ])
-                ),
+                h.text(session.text(".ask_download", [data.title, timeout])),
               ]);
             }
             if (options.info) return;
@@ -352,9 +343,7 @@ export function apply(ctx: Context, config: Config) {
               if (!options.push) {
                 await session.send([
                   h.quote(id),
-                  h.text(session.text(".ask_push"), [
-                    config.inputTimeout / 1000,
-                  ]),
+                  h.text(session.text(".ask_push"), [timeout]),
                 ]);
                 const ans = await session.prompt(config.inputTimeout);
                 push = ["是", "y", "yes"].includes(ans.toLocaleLowerCase());
