@@ -5,6 +5,7 @@ import { Aria2Params, Aria2Respond, Aria2TellStatus } from "./types/Aria2";
 import {} from "@koishijs/plugin-logger";
 import {} from "@koishijs/plugin-http";
 import { requestWithRetry } from "./utils";
+import { OverRetryError } from "./error/overRetry.error";
 
 export const name = "steam-workshop";
 
@@ -177,10 +178,18 @@ export function apply(ctx: Context, config: Config) {
         const u = new URL(url);
         const workId = u.searchParams.get("id");
 
-        const res = await requestWithRetry<FileInfo[]>(WORKSHOP_API, "POST", {
-          data: `[${workId}]`,
-          responseType: "json",
-        });
+        let res: FileInfo[];
+        try {
+          res = await requestWithRetry<FileInfo[]>(WORKSHOP_API, "POST", {
+            data: `[${workId}]`,
+            responseType: "json",
+          });
+        } catch (error) {
+          if (error instanceof OverRetryError) {
+            session.send([h.quote(id), h.text(session.text(".request_fail"))]);
+            return;
+          }
+        }
 
         const data = res[0];
         if (data.num_children === 0) {
@@ -227,7 +236,7 @@ export function apply(ctx: Context, config: Config) {
                 return;
             }
             let push = options.push || false;
-            if (!options.push) {
+            if (config.rpc && !options.push) {
               await session.send([
                 h.quote(id),
                 h.text(session.text(".ask_push"), [timeout]),
@@ -242,7 +251,7 @@ export function apply(ctx: Context, config: Config) {
               const result = await session.send([
                 h.file(data.file_url, { title }),
               ]);
-              if (push) rpcServer(data.file_url, title);
+              if (config.rpc && push) rpcServer(data.file_url, title);
               if ((result as string[]).length) {
                 return;
               } else if (i === retries - 1) {
@@ -265,28 +274,34 @@ export function apply(ctx: Context, config: Config) {
           logger.info(session.text(".multi_file", [data.title]));
           let workIds = data.children.map((item) => item.publishedfileid);
           const multiRes: FileInfo[] = [];
-          if (workIds.length <= 50) {
-            const res = await requestWithRetry<FileInfo[]>(
-              WORKSHOP_API,
-              "POST",
-              { data: `[${workIds.join(",")}]`, responseType: "json" }
-            );
-            multiRes.push(...res);
-          } else {
-            do {
-              const ids = workIds.slice(0, 50).join(",");
+          try {
+            if (workIds.length <= 50) {
               const res = await requestWithRetry<FileInfo[]>(
                 WORKSHOP_API,
                 "POST",
-                { data: `[${ids}]`, responseType: "json" }
+                { data: `[${workIds.join(",")}]`, responseType: "json" }
               );
               multiRes.push(...res);
-              workIds.splice(0, 50);
-            } while (workIds.length <= 50);
-          }
-          if (!status) {
-            session.send([h.quote(id), h.text(session.text(".request_fail"))]);
-            return;
+            } else {
+              do {
+                const ids = workIds.slice(0, 50).join(",");
+                const res = await requestWithRetry<FileInfo[]>(
+                  WORKSHOP_API,
+                  "POST",
+                  { data: `[${ids}]`, responseType: "json" }
+                );
+                multiRes.push(...res);
+                workIds.splice(0, 50);
+              } while (workIds.length <= 50);
+            }
+          } catch (error) {
+            if (error instanceof OverRetryError) {
+              session.send([
+                h.quote(id),
+                h.text(session.text(".request_fail")),
+              ]);
+              return;
+            }
           }
           if (multiRes) {
             const result = segment("figure");
@@ -340,7 +355,7 @@ export function apply(ctx: Context, config: Config) {
                   return;
               }
               let push = options.push || false;
-              if (!options.push) {
+              if (config.rpc && !options.push) {
                 await session.send([
                   h.quote(id),
                   h.text(session.text(".ask_push"), [timeout]),
@@ -363,7 +378,7 @@ export function apply(ctx: Context, config: Config) {
                   const result = await session.send([
                     h.file(item.file_url, { title }),
                   ]);
-                  if (push) rpcServer(item.file_url, title);
+                  if (config.rpc && push) rpcServer(item.file_url, title);
                   if ((result as string[]).length) {
                     const index = failIds.indexOf(item.publishedfileid);
                     if (index !== -1) {
