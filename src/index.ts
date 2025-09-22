@@ -1,15 +1,12 @@
-import { Context, HTTP, Logger, Schema, h, segment, sleep } from "koishi";
-import { sizeFormat, timestampToDate } from "./utils/sizeFormat";
-import { FileInfo } from "./types";
-import { Aria2Params, Aria2Respond, Aria2TellStatus } from "./types/Aria2";
+import { Context, Schema, h, segment, sleep } from "koishi";
+import { Aria2Respond, Aria2TellStatus, RpcBody } from "./types/Aria2";
 import {} from "@koishijs/plugin-logger";
 import {} from "@koishijs/plugin-http";
-import { requestWithRetry } from "./utils";
+import { formatFileName, requestWithRetry } from "./utils";
 import { OverRetryError } from "./error/overRetry.error";
+import { SteamWorkshop } from "./entity/SteamWorkshop";
 
 export const name = "steam-workshop";
-
-const WORKSHOP_API = "https://steamworkshopdownloader.io/api/details/file";
 
 export interface Config {
   autoRecognise?: boolean;
@@ -68,10 +65,6 @@ export const inject = {
   required: ["http", "logger"],
 };
 
-export let http: HTTP;
-export let logger: Logger;
-export let retryCount: number;
-
 export function apply(ctx: Context, config: Config) {
   // write your plugin here
   ctx.i18n.define("en-US", require("./locales/en-US"));
@@ -80,9 +73,7 @@ export function apply(ctx: Context, config: Config) {
   const regexp =
     /^https:\/\/steamcommunity.com\/(sharedfiles|workshop)\/filedetails\/\?id=\d+/;
 
-  logger = ctx.logger("wahaha216-steam-workshop");
-  http = ctx.http;
-  retryCount = config.requestRetries;
+  const logger = ctx.logger("wahaha216-steam-workshop");
 
   ctx
     .command("workshop <url:string>")
@@ -93,134 +84,109 @@ export function apply(ctx: Context, config: Config) {
     .action(async ({ session, options }, url) => {
       const id = session.messageId;
       const timeout = config.inputTimeout / 1000;
-      const formatFileName = (item: FileInfo) => {
-        if (options.name) return options.name;
-        const invalidReg = /[\\/:\*\?"\<\>\|\r\n]/g;
-        const ext = item.filename.substring(item.filename.lastIndexOf("."));
-        const name = item.title.replace(invalidReg, " ");
-        const download_name = `${name.trim()}${ext}`;
-        logger.info(
-          session.text(".download_info", [download_name, item.file_url])
-        );
-        return download_name;
-      };
 
-      const rpcRequest = async <T = Aria2Respond>(
-        method: "aria2.addUri" | "aria2.tellStatus",
-        params: Aria2Params
-      ) => {
+      const rpcRequest = async <T = Aria2Respond>(body: RpcBody) => {
         const protocol = config.rpcSecure ? "https://" : "http://";
         const url = `${protocol}${config.rpcIp}:${config.rpcPort}/jsonrpc`;
-        return await requestWithRetry<T>(url, "POST", {
-          data: {
-            //消息id，aria2会原样返回这个id，可以自动生成也可以用其他唯一标识
-            id: new Date().getTime().toString(),
-            //固定值
-            jsonrpc: "2.0",
-            //方法名，具体参考上方“方法列表”链接，本例中为“添加下载任务”
-            method,
-            //params为数组
-            params,
-          },
-        });
+        return await requestWithRetry<T>(
+          ctx.http,
+          logger,
+          config.requestRetries,
+          url,
+          "POST",
+          { data: body }
+        );
       };
 
-      const rpcServer = async (url: string, fileName: string) => {
-        const token = `token:${config.rpcSecret}`;
-        const addTaskParams: Aria2Params = [
-          token,
-          [url],
-          { dir: config.rpcDir, out: fileName },
-        ];
-        if (!config.rpcSecret) addTaskParams.shift();
-        const addTaskRes = await rpcRequest("aria2.addUri", addTaskParams);
-        await session.send([
-          h.quote(id),
-          h.text(session.text("rpc.push", [fileName])),
-        ]);
-        const key = addTaskRes.result;
+      const rpcServer = async (steamWorkshop: SteamWorkshop) => {
+        const rpcDownloadBody = steamWorkshop.buildRpcDownloadBody();
+        const addTaskRes = await rpcRequest(rpcDownloadBody);
+        await session.send([h.quote(id), h.text(session.text("rpc.push"))]);
+        const result = addTaskRes.result;
+        const keys = result.map((r) => r[0]);
 
         let intervalCount = 0;
         do {
           await ctx.sleep(config.rpcPolling);
           try {
-            const statusParams: Aria2Params = [token, key];
-            if (!config.rpcSecret) statusParams.shift();
-            const statusRes = await rpcRequest<Aria2Respond<Aria2TellStatus>>(
-              "aria2.tellStatus",
-              statusParams
-            );
+            const rpcStatusBody = steamWorkshop.buildRpcStatusBody(keys);
 
-            switch (statusRes.result.status) {
-              case "complete":
-                return await session.send([
-                  h.quote(id),
-                  h.text(session.text("rpc.complete", [fileName])),
-                ]);
-              case "error":
-                return await session.send([
-                  h.quote(id),
-                  h.text(session.text("rpc.error", [fileName])),
-                ]);
-              default:
-                break;
+            const statusRes = await rpcRequest<
+              Aria2Respond<Aria2TellStatus[][]>
+            >(rpcStatusBody);
+
+            const status = statusRes.result.map((item) => item[0].status);
+
+            const success = status.every((item) => item === "complete");
+            if (success) {
+              return await session.send([
+                h.quote(id),
+                h.text(session.text("rpc.complete")),
+              ]);
+            }
+
+            const someError = status.some((item) => item === "error");
+            if (someError) {
+              const errorMsg = statusRes.result.map(
+                (item) => item[0].errorMessage
+              );
+              return await session.send([
+                h.quote(id),
+                h.text(session.text("rpc.error", [errorMsg[0]])),
+              ]);
             }
           } catch (error) {}
           intervalCount++;
         } while (intervalCount < config.rpcPollingCount);
         return await session.send([
           h.quote(id),
-          h.text(session.text("rpc.timeout", [fileName])),
+          h.text(session.text("rpc.timeout")),
         ]);
       };
 
       if (regexp.test(url)) {
-        const u = new URL(url);
-        const workId = u.searchParams.get("id");
-
-        let res: FileInfo[];
+        const steamWorkshop = new SteamWorkshop(
+          session,
+          ctx.http,
+          logger,
+          config
+        );
         try {
-          res = await requestWithRetry<FileInfo[]>(WORKSHOP_API, "POST", {
-            data: `[${workId}]`,
-            responseType: "json",
-          });
+          await steamWorkshop.analyzeUrl(url);
         } catch (error) {
           if (error instanceof OverRetryError) {
             session.send([h.quote(id), h.text(session.text(".request_fail"))]);
             return;
           }
         }
+        const singleFile = steamWorkshop.getSingleFile();
 
-        const data = res[0];
-        if (data.num_children === 0) {
-          // 单文件
-          logger.info(session.text(".single_file", [data.title]));
+        // 单文件
+        if (singleFile) {
+          const fileInfos = steamWorkshop.getFileInfos();
+          const fileinfo = fileInfos[0];
+          const title = steamWorkshop.getTitle();
+          logger.info(session.text(".single_file", [title]));
           const fragment: h.Fragment = [
             h.quote(id),
-            h.text(`${session.text(".title")}: ${data.title}\n`),
+            h.text(`${session.text(".title")}: ${fileinfo.title}\n`),
             h.text(
-              `${session.text(".releaseTime")}: ${timestampToDate(
-                data.time_created * 1000
-              )}\n`
+              `${session.text(".releaseTime")}: ${fileinfo.releaseTime}\n`
             ),
+            h.text(`${session.text(".updateTime")}: ${fileinfo.updateTime}\n`),
             h.text(
-              `${session.text(".updateTime")}: ${timestampToDate(
-                data.time_updated * 1000
-              )}\n`
+              `${session.text(".fileSize")}: ${fileinfo.formatFileSize}\n`
             ),
+            h.text(`${session.text(".game")}: ${fileinfo.game}\n`),
             h.text(
-              `${session.text(".fileSize")}: ${sizeFormat(data.file_size)}\n`
+              `${session.text(".description")}: \n${fileinfo.description}\n`
             ),
-            h.text(`${session.text(".game")}: ${data.app_name}\n`),
-            h.text(
-              `${session.text(".description")}: \n${data.file_description}\n`
-            ),
-            h.image(data.preview_url),
+            h.image(fileinfo.imageUrl),
           ];
           if (config.askDownload && !options.info && !options.download) {
             fragment.push(
               h.text("=".repeat(20) + "\n"),
-              h.text(session.text(".ask_download", [data.title, timeout]))
+              h.text(session.text(".ask_download", [fileinfo.title, timeout]))
             );
           }
           await session.send(fragment);
@@ -244,21 +210,23 @@ export function apply(ctx: Context, config: Config) {
               const ans = await session.prompt(config.inputTimeout);
               push = ["是", "y", "yes"].includes(ans.toLocaleLowerCase());
             }
-            const title = formatFileName(data);
             const retries = config.downloadRetries;
             let success = true;
             for (let i = 0; i <= retries; i++) {
               const result = await session.send([
-                h.file(data.file_url, { title }),
+                h.file(fileinfo.fileUrl, { title: fileinfo.fileName }),
               ]);
-              if (config.rpc && push) rpcServer(data.file_url, title);
               if ((result as string[]).length) {
                 return;
               } else if (i === retries - 1) {
                 success = false;
               } else {
                 logger.info(
-                  session.text(".download_retry", [title, i + 1, retries])
+                  session.text(".download_retry", [
+                    fileinfo.fileName,
+                    i + 1,
+                    retries,
+                  ])
                 );
               }
             }
@@ -268,139 +236,105 @@ export function apply(ctx: Context, config: Config) {
                 h.text(session.text(".download_fail")),
               ]);
             }
+            if (config.rpc && push) rpcServer(steamWorkshop);
           }
-        } else {
-          // 合集
-          logger.info(session.text(".multi_file", [data.title]));
-          let workIds = data.children.map((item) => item.publishedfileid);
-          const multiRes: FileInfo[] = [];
-          try {
-            if (workIds.length <= 50) {
-              const res = await requestWithRetry<FileInfo[]>(
-                WORKSHOP_API,
-                "POST",
-                { data: `[${workIds.join(",")}]`, responseType: "json" }
-              );
-              multiRes.push(...res);
-            } else {
-              do {
-                const ids = workIds.slice(0, 50).join(",");
-                const res = await requestWithRetry<FileInfo[]>(
-                  WORKSHOP_API,
-                  "POST",
-                  { data: `[${ids}]`, responseType: "json" }
-                );
-                multiRes.push(...res);
-                workIds.splice(0, 50);
-              } while (workIds.length <= 50);
-            }
-          } catch (error) {
-            if (error instanceof OverRetryError) {
-              session.send([
-                h.quote(id),
-                h.text(session.text(".request_fail")),
-              ]);
-              return;
-            }
+        }
+        // 合集
+        else {
+          const title = steamWorkshop.getTitle();
+          logger.info(session.text(".multi_file", [title]));
+          const workshopInfo = steamWorkshop.getWorkshopInfo();
+          const workshopFileinfo = steamWorkshop.getFileInfos();
+          const fileType = workshopInfo[0].file_type;
+          if (fileType === 0) {
+            logger.info(session.text(".file_has_depend", [fileType]));
+          } else {
+            logger.info(session.text(".file_collection", [fileType]));
+            workshopInfo.shift();
+            workshopFileinfo.shift();
           }
-          if (multiRes) {
-            const result = segment("figure");
-            const buildContent = (item: FileInfo) => {
-              const fragment: h.Fragment = [
-                h.text(`${session.text(".title")}: ${item.title}\n`),
-                h.text(
-                  `${session.text(".fileSize")}: ${sizeFormat(
-                    item.file_size
-                  )}\n`
-                ),
-                h.text(`${session.text(".game")}: ${item.app_name}\n`),
-                h.text(
-                  `${session.text(".description")}: \n${
-                    item.file_description
-                  }\n`
-                ),
-                h.image(item.preview_url),
-              ];
-              result.children.push(
-                segment(
-                  "message",
-                  { userId: session.event.selfId, nickname: "workshop info" },
-                  fragment
-                )
-              );
-            };
-            if (data.file_type === 0) {
-              logger.info(session.text(".file_has_depend", [data.file_type]));
-              buildContent(data);
-            } else {
-              logger.info(session.text(".file_collection", [data.file_type]));
+          const result = segment("figure");
+          workshopFileinfo.forEach((item) => {
+            const fragment: h.Fragment = [
+              h.text(`${session.text(".title")}: ${item.title}\n`),
+              h.text(`${session.text(".fileSize")}: ${item.fileSize}\n`),
+              h.text(`${session.text(".releaseTime")}: ${item.releaseTime}\n`),
+              h.text(`${session.text(".updateTime")}: ${item.updateTime}\n`),
+              h.text(`${session.text(".game")}: ${item.game}\n`),
+              h.text(
+                `${session.text(".description")}: \n${item.description}\n`
+              ),
+              h.image(item.imageUrl),
+            ];
+            result.children.push(
+              segment(
+                "message",
+                { userId: session.event.selfId, nickname: "workshop info" },
+                fragment
+              )
+            );
+          });
+          await session.send(result);
+          if (config.askDownload && !options.info && !options.download) {
+            await sleep(2000);
+            await session.send([
+              h.quote(id),
+              h.text(session.text(".ask_download", [title, timeout])),
+            ]);
+          }
+          if (options.info) return;
+
+          if (config.askDownload) {
+            if (!options.download) {
+              const download = await session.prompt(config.inputTimeout);
+              if (!download)
+                return [h.quote(id), h.text(session.text(".input_timeout"))];
+              if (!["是", "y", "yes"].includes(download.toLocaleLowerCase()))
+                return;
             }
-            multiRes.forEach(buildContent);
-            await session.send(result);
-            if (config.askDownload && !options.info && !options.download) {
-              await sleep(2000);
+            let push = options.push || false;
+            if (config.rpc && !options.push) {
               await session.send([
                 h.quote(id),
-                h.text(session.text(".ask_download", [data.title, timeout])),
+                h.text(session.text(".ask_push"), [timeout]),
+              ]);
+              const ans = await session.prompt(config.inputTimeout);
+              push = ["是", "y", "yes"].includes(ans.toLocaleLowerCase());
+            }
+            let success = true;
+            let failIds = workshopInfo.map((item) => item.publishedfileid);
+            const retries = config.downloadRetries;
+            for (let i = 0; i <= retries; i++) {
+              const list = workshopInfo.filter((item) =>
+                failIds.some((id) => id === item.publishedfileid)
+              );
+              for (const item of list) {
+                const title = formatFileName(logger, item, session);
+                const result = await session.send([
+                  h.file(item.file_url, { title }),
+                ]);
+                if ((result as string[]).length) {
+                  const index = failIds.indexOf(item.publishedfileid);
+                  if (index !== -1) {
+                    failIds.splice(index, 1);
+                  }
+                } else if (i === retries - 1) {
+                  success = false;
+                }
+              }
+              if (failIds.length) {
+                logger.info(
+                  session.text(".download_retry", ["", i + 1, retries])
+                );
+              }
+            }
+            if (!success) {
+              session.send([
+                h.quote(id),
+                h.text(session.text(".download_fail")),
               ]);
             }
-            if (options.info) return;
-
-            if (config.askDownload) {
-              if (!options.download) {
-                const download = await session.prompt(config.inputTimeout);
-                if (!download)
-                  return [h.quote(id), h.text(session.text(".input_timeout"))];
-                if (!["是", "y", "yes"].includes(download.toLocaleLowerCase()))
-                  return;
-              }
-              let push = options.push || false;
-              if (config.rpc && !options.push) {
-                await session.send([
-                  h.quote(id),
-                  h.text(session.text(".ask_push"), [timeout]),
-                ]);
-                const ans = await session.prompt(config.inputTimeout);
-                push = ["是", "y", "yes"].includes(ans.toLocaleLowerCase());
-              }
-              let success = true;
-              if (data.file_type === 0) {
-                multiRes.unshift(data);
-              }
-              let failIds = multiRes.map((item) => item.publishedfileid);
-              const retries = config.downloadRetries;
-              for (let i = 0; i <= retries; i++) {
-                const list = multiRes.filter((item) =>
-                  failIds.some((id) => id === item.publishedfileid)
-                );
-                for (const item of list) {
-                  const title = formatFileName(item);
-                  const result = await session.send([
-                    h.file(item.file_url, { title }),
-                  ]);
-                  if (config.rpc && push) rpcServer(item.file_url, title);
-                  if ((result as string[]).length) {
-                    const index = failIds.indexOf(item.publishedfileid);
-                    if (index !== -1) {
-                      failIds.splice(index, 1);
-                    }
-                  } else if (i === retries - 1) {
-                    success = false;
-                  }
-                }
-                if (failIds.length) {
-                  logger.info(
-                    session.text(".download_retry", ["", i + 1, retries])
-                  );
-                }
-              }
-              if (!success) {
-                session.send([
-                  h.quote(id),
-                  h.text(session.text(".download_fail")),
-                ]);
-              }
-            }
+            if (config.rpc && push) rpcServer(steamWorkshop);
           }
         }
       } else {

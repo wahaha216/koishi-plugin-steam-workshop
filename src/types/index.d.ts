@@ -1,4 +1,4 @@
-export declare type FileInfo = {
+export declare type WorkshopInfo = {
   result: number;
   publishedfileid: string;
   creator: string;
@@ -58,4 +58,19 @@ export declare type FileInfo = {
   vote_data: { result: number; votes_up: number; votes_down: number };
   language: number;
   download_format: string;
+};
+
+export declare type WorkshopFileInfo = {
+  title: string;
+  releaseTimestamp: number;
+  releaseTime: string;
+  updateTimestamp: number;
+  updateTime: string;
+  fileSize: string;
+  formatFileSize: string;
+  game: string;
+  description: string;
+  imageUrl: string;
+  fileUrl: string;
+  fileName: string;
 };

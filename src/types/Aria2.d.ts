@@ -1,4 +1,4 @@
-export type Aria2Respond<T = string> = {
+export type Aria2Respond<T = string[][]> = {
   id: string;
   jsonrpc: "2.0";
   result: T;
@@ -46,3 +46,10 @@ export type Aria2Params = (
       header?: string[];
     }
 )[];
+
+export type RpcBody = {
+  id: string;
+  jsonrpc: "2.0";
+  method: "system.multicall" | "aria2.addUri" | "aria2.tellStatus";
+  params: [Object[]];
+};

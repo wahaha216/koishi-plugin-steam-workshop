@@ -18,8 +18,8 @@ commands:
       invalid_link: 不正确的链接格式
       single_file: "{0}判断为单文件"
       multi_file: "{0}判断为多文件，合集或是有依赖文件"
-      file_has_dep: 文件类型：{0}，有依赖文件
-      file_collection: 文件类型：{0}，合集'
+      file_has_depend: 文件类型：{0}，有依赖文件
+      file_collection: 文件类型：{0}，合集
       download_info: 文件名称：{0}，URL：{1}
       download_retry: 文件{0}下载失败，正在重试 {1}/{2}
       download_fail: （部分）文件下载失败
@@ -44,7 +44,7 @@ _config:
     rpcPollingCount: 轮询次数
     rpcDir: 存储路径
 rpc:
-  push: 已将 {0} 下载链接推送至服务器
-  complete: "{0} 下载完成"
-  error: "{0} 下载失败，请自行检查远程服务器"
-  timeout: "{0} 在指定时间({1})内未下载完成，不再等待，请自行检查远程服务器"
+  push: 已将该链接下的文件的下载链接推送至服务器
+  complete: "该链接下的文件下载完成"
+  error: "该链接下的文件（部分）下载失败\n{0}"
+  timeout: "该链接下的文件在指定时间内未下载完成，不再检查下载状态，请自行检查远程服务器"

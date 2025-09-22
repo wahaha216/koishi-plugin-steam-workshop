@@ -29,6 +29,11 @@ workshop https://steamcommunity.com/workshop/filedetails/?id=xxxxxxxxx
 ## 更新日志
 
 <details>
+<summary>1.0.0-rc.4</summary>
+重构部分代码
+</details>
+
+<details>
 <summary>1.0.0-rc.3</summary>
 1.未启用rpc不会询问是否推送
 
