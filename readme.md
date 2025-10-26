@@ -29,6 +29,11 @@ workshop https://steamcommunity.com/workshop/filedetails/?id=xxxxxxxxx
 ## 更新日志
 
 <details>
+<summary>1.0.0-rc.5</summary>
+修正类型为单文件时无法RPC推送至服务器
+</details>
+
+<details>
 <summary>1.0.0-rc.4</summary>
 重构部分代码
 </details>

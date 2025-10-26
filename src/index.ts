@@ -100,6 +100,8 @@ export function apply(ctx: Context, config: Config) {
 
       const rpcServer = async (steamWorkshop: SteamWorkshop) => {
         const rpcDownloadBody = steamWorkshop.buildRpcDownloadBody();
+        logger.info(rpcDownloadBody);
+
         const addTaskRes = await rpcRequest(rpcDownloadBody);
         await session.send([h.quote(id), h.text(session.text("rpc.push"))]);
         const result = addTaskRes.result;
@@ -217,7 +219,7 @@ export function apply(ctx: Context, config: Config) {
                 h.file(fileinfo.fileUrl, { title: fileinfo.fileName }),
               ]);
               if ((result as string[]).length) {
-                return;
+                break;
               } else if (i === retries - 1) {
                 success = false;
               } else {
