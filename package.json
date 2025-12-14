@@ -1,7 +1,7 @@
 {
   "name": "@wahaha216/koishi-plugin-steam-workshop",
   "description": "从 steam 创意工坊获取文件并上传，可选RPC推送至服务器下载",
-  "version": "1.0.0-rc.5",
+  "version": "1.0.0-rc.6",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
