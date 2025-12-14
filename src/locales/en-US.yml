@@ -26,6 +26,11 @@ commands:
       request_fail: Get steam workshop info failed
       request_retry: Get steam workshop info failed, retrying {1}/{2}
       ask_push: "Is the download address pushed to the server? (Reply within {0} seconds: Yes |y|yes/No |n|no)"
+rpc:
+  push: "The download link has been pushed to the server"
+  complete: "Remote Server Download completed"
+  error: "Remote Server Download failed, reson:\n{0}"
+  timeout: "The Remote Server download was not completed within the specified time. No more checking status. Please check the remote server yourself."
 _config:
   - $desc: Basic settings
     autoRecognise: Auto recongnise Steam Workshop item link
@@ -43,8 +48,3 @@ _config:
     rpcPolling: Polling time interval, milliseconds
     rpcPollingCount: Number of polling times
     rpcDir: Storage path
-rpc:
-  push: "The download link has been pushed to the server"
-  complete: "Download completed"
-  error: "Download failed, reson:\n{0}"
-  timeout: "The download was not completed within the specified time. No more checking status. Please check the remote server yourself."

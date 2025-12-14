@@ -26,6 +26,12 @@ commands:
       request_fail: 获取创意工坊信息失败
       request_retry: 获取创意工坊信息失败，正在重试 {0}/{1}
       ask_push: 是否将下载地址推送至服务器？（{0}秒内回复：是|y|yes/否|n|no）
+
+rpc:
+  push: 已将该链接下的文件的下载链接推送至服务器
+  complete: "远程服务器该链接下的文件下载完成"
+  error: "远程服务器该链接下的文件（部分）下载失败\n{0}"
+  timeout: "远程服务器该链接下的文件在指定时间内未下载完成，不再检查下载状态，请自行检查远程服务器"
 _config:
   - $desc: 基础设置
     autoRecognise: 自动识别创意工坊物品链接
@@ -43,8 +49,3 @@ _config:
     rpcPolling: 轮询时间间隔，毫秒
     rpcPollingCount: 轮询次数
     rpcDir: 存储路径
-rpc:
-  push: 已将该链接下的文件的下载链接推送至服务器
-  complete: "该链接下的文件下载完成"
-  error: "该链接下的文件（部分）下载失败\n{0}"
-  timeout: "该链接下的文件在指定时间内未下载完成，不再检查下载状态，请自行检查远程服务器"
