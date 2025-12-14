@@ -4,6 +4,7 @@ import {} from "@koishijs/plugin-logger";
 import {} from "@koishijs/plugin-http";
 import { formatFileName, requestWithRetry } from "./utils";
 import { OverRetryError } from "./error/overRetry.error";
+import { RequestFailedError } from "./error/requestFailed.error";
 import { SteamWorkshop } from "./entity/SteamWorkshop";
 
 export const name = "steam-workshop";
@@ -156,7 +157,10 @@ export function apply(ctx: Context, config: Config) {
         try {
           await steamWorkshop.analyzeUrl(url);
         } catch (error) {
-          if (error instanceof OverRetryError) {
+          if (
+            error instanceof OverRetryError ||
+            error instanceof RequestFailedError
+          ) {
             session.send([h.quote(id), h.text(session.text(".request_fail"))]);
             return;
           }

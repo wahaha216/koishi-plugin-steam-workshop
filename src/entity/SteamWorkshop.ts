@@ -5,6 +5,7 @@ import { WORKSHOP_API } from "../utils/const";
 import { sizeFormat, timestampToDate } from "../utils/sizeFormat";
 import { Config } from "..";
 import { RpcBody } from "../types/Aria2";
+import { RequestFailedError } from "../error/requestFailed.error";
 
 export class SteamWorkshop {
   private session: Session;
@@ -31,7 +32,7 @@ export class SteamWorkshop {
    * 解析steam创意工坊链接
    * @param url steam创意工坊链接
    */
-  public async analyzeUrl(url: string) {
+  public async analyzeUrl(url: string): Promise<void> {
     const u = new URL(url);
     const workshopId = u.searchParams.get("id");
 
@@ -43,6 +44,10 @@ export class SteamWorkshop {
       "POST",
       { data: `[${workshopId}]`, responseType: "json" }
     );
+
+    if (this.workshopInfo.length === 0) {
+      throw new RequestFailedError(this.session.text(".request_fail"));
+    }
 
     const firstInfo = this.workshopInfo[0];
     this.singleFile = firstInfo.num_children === 0;
